@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Not Alma Uygulaması</title>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+
+<style>
+body{font-family:Arial;padding:20px}
+.note{border:1px solid #ccc;padding:10px;margin:10px 0}
+/* Vue mount olana kadar moustache'ların görünmesini engeller */
+[v-cloak]{display:none}
+</style>
+
+</head>
+<body>
+
+<div id="app" v-cloak>
+
+<h1>Not Alma Uygulaması</h1>
+
+<h3>Yeni Not</h3>
+
+<input v-model="newTitle" placeholder="Başlık">
+<br>
+<textarea v-model="newContent" placeholder="İçerik"></textarea>
+<br>
+
+<button @click="addNote">Not Ekle</button>
+
+<hr>
+
+<h3>Notlar</h3>
+
+<div v-for="note in notes" :key="note.id" class="note">
+
+<strong>{{note.title}}</strong>
+
+<p>{{note.content}}</p>
+
+<button @click="editNote(note)">Düzenle</button>
+
+<button @click="deleteNote(note.id)">Sil</button>
+
+<button @click="showVersions(note.id)">Versiyonları Gör</button>
+
+</div>
+
+
+<hr>
+
+<h3>Versiyon Geçmişi</h3>
+
+<div v-for="v in versions" :key="v.versionId">
+
+<strong>Version {{v.versionId}}</strong>
+
+<p>{{v.title}}</p>
+
+<p>{{v.content}}</p>
+
+</div>
+
+</div>
+
+
+<script>
+
+const { createApp } = Vue;
+
+createApp({
+
+data(){
+
+return{
+
+// Backend'den gelen tüm notları tutan liste
+notes:[],
+
+// Yeni not oluştururken inputlardan gelen veriler
+newTitle:"",
+newContent:"",
+
+// Güncelleme yapılacak notun id'si
+editingId:null,
+
+// Seçilen notun eski versiyonlarını tutan liste
+versions:[]
+
+}
+
+},
+
+mounted(){
+
+// Sayfa ilk yüklendiğinde backend API'den notları çekiyoruz
+// SPA mantığında sayfa yenilenmez, veri JS ile çekilir
+this.fetchNotes();
+
+},
+
+methods:{
+
+
+// NOTLARI BACKEND'DEN GETİR
+
+async fetchNotes(){
+
+// fetch() javascript'in HTTP isteği yapan fonksiyonudur
+// burada GET /api/note endpointine istek gönderiyoruz
+
+const response = await fetch('/api/note');
+
+// backend JSON döndürdüğü için json() ile parse ediyoruz
+this.notes = await response.json();
+
+},
+
+// YENİ NOT EKLE
+async addNote(){
+
+// Eğer edit modundaysak PUT isteği yapacağız
+if(this.editingId){
+
+await this.updateNote();
+
+return;
+
+}
+
+
+// fetch ile POST isteği gönderiyoruz
+
+const response = await fetch('/api/note',{
+
+method:'POST',
+
+headers:{
+'Content-Type':'application/json'
+},
+
+// body içinde gönderilen veri
+body:JSON.stringify({
+
+title:this.newTitle,
+content:this.newContent
+
+})
+
+});
+
+
+// backend yeni oluşturulan notu JSON olarak döndürür
+const note = await response.json();
+
+// sayfa yenilemeden listeye ekliyoruz
+this.notes.push(note);
+
+
+// inputları temizliyoruz
+this.newTitle="";
+this.newContent="";
+
+},
+
+
+// NOT SİL
+async deleteNote(id){
+
+
+await fetch(`/api/note/${id}`,{
+
+method:'DELETE'
+
+});
+
+
+// DOM'dan da siliyoruz
+// SPA mantığında sayfa reload edilmez
+this.notes = this.notes.filter(n=>n.id !== id);
+
+},
+
+
+
+// NOTU EDIT MODUNA AL
+editNote(note){
+
+// inputlara mevcut not verisini koyuyoruz
+this.newTitle = note.title;
+this.newContent = note.content;
+
+// hangi notu güncelleyeceğimizi tutuyoruz
+this.editingId = note.id;
+
+},
+
+
+
+// NOT GÜNCELLE
+async updateNote(){
+
+
+await fetch(`/api/note/${this.editingId}`,{
+
+method:'PUT',
+
+headers:{
+'Content-Type':'application/json'
+},
+
+body:JSON.stringify({
+
+title:this.newTitle,
+content:this.newContent
+
+})
+
+});
+
+
+// güncellemeden sonra notları tekrar çekiyoruz
+await this.fetchNotes();
+
+// edit modundan çık
+this.editingId=null;
+
+this.newTitle="";
+this.newContent="";
+
+},
+
+
+
+// NOTUN ESKİ VERSİYONLARINI GETİR
+async showVersions(id){
+
+// GET /api/note/{id}/versions endpointine istek gönderiyoruz
+// backend bize o notun tüm geçmiş versiyonlarını döndürür
+
+const response = await fetch(`/api/note/${id}/versions`);
+
+this.versions = await response.json();
+
+}
+
+}
+
+}).mount('#app');
+
+</script>
+
+</body>
+</html>
